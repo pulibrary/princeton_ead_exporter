@@ -62,48 +62,30 @@ class EADSerializer < ASpaceExport::Serializer
         published = agent['publish'] === true
 
         next if !published && !@include_unpublished
-        agent['notes'].each do |note|
-          type = note["jsonmodel_type"].tr("note_", "")
-          next unless type == 'bighis'
-          audatt = published === false ? {:audience => 'internal'} : {}
-          content = ASpaceExport::Utils.extract_note_text(note, @include_unpublished)
-          att = {}
-          xml.send('bioghist', att.merge(audatt)) {
-            sanitize_mixed_content(content, xml, fragments,ASpaceExport::Utils.include_p?('bioghist'))
-          }
+        notes = agent['notes'].select{ |x| x['jsonmodel_type'] == "note_bioghist" }
+        notes.each do |note|
+          note['type'] = 'bioghist'
+          note['internal'] = false
+          note['publish'] = true
+          serialize_note_content(note, xml, fragments)
         end
       end
     end
   end
 
-  def serialize_did_notes(data, xml, fragments)
+  def serialize_nondid_notes(data, xml, fragments)
     data.notes.each do |note|
       next if note["publish"] === false && !@include_unpublished
-      next unless data.did_note_types.include?(note['type'])
-
+      next if note['internal']
+      next if note['type'].nil?
+      next unless data.archdesc_note_types.include?(note['type'])
       audatt = note["publish"] === false ? {:audience => 'internal'} : {}
-      content = ASpaceExport::Utils.extract_note_text(note, @include_unpublished)
-
-      att = { :id => prefix_id(note['persistent_id']) }.reject {|k,v| v.nil? || v.empty? || v == "null" }
-      att ||= {}
-
-      case note['type']
-      when 'dimensions', 'physfacet'
-        att[:label] = note['label'] if note['label']
-        xml.physdesc(audatt) {
-          xml.send(note['type'], att) {
-            sanitize_mixed_content( content, xml, fragments, ASpaceExport::Utils.include_p?(note['type'])  )
-          }
-        }
-      when 'physdesc'
-        att[:label] = note['label'] if note['label']
-        xml.send(note['type'], att.merge(audatt)) {
-          sanitize_mixed_content(content, xml, fragments,ASpaceExport::Utils.include_p?(note['type']))
+      if note['type'] == 'legalstatus'
+        xml.accessrestrict(audatt) {
+          serialize_note_content(note, xml, fragments)
         }
       else
-        xml.send(note['type'], att.merge(audatt)) {
-          sanitize_mixed_content(content, xml, fragments,ASpaceExport::Utils.include_p?(note['type']))
-        }
+        serialize_note_content(note, xml, fragments)
       end
     end
     serialize_agent_notes(data, xml, fragments)
