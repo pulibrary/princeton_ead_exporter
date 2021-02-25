@@ -90,4 +90,32 @@ class EADSerializer < ASpaceExport::Serializer
     end
     serialize_agent_notes(data, xml, fragments)
   end
+
+  # Patch handle_linebreaks to deal with mixed content in <p> tags.
+  # @todo Remove when fixed upstream.
+  def handle_linebreaks(content)
+    # 4archon...
+    content.gsub!("\n\t", "\n\n")
+    # PRINCETON PATCH
+    # Replace <p> with two linebreaks to ensure that content in each section is
+    # properly escaped for output.
+    content.gsub!("</p>", "\n\n")
+    content.gsub!("<p>", "")
+    # END PRINCETON PATCH (some code below is dead now, but left for the sake of
+    # similarity)
+    # if there's already p tags, just leave as is
+    return content if ( content.strip =~ /^<p(\s|\/|>)/ or content.strip.length < 1 )
+    original_content = content
+    blocks = content.split("\n\n").select { |b| !b.strip.empty? }
+    if blocks.length > 1
+      content = blocks.inject("") do |c,n|
+        c << "<p>#{escape_content(n.chomp)}</p>"
+      end
+    else
+      content = "<p>#{escape_content(content.strip)}</p>"
+    end
+
+    # just return the original content if there's still problems
+    xml_errors(content).any? ? original_content : content
+  end
 end
