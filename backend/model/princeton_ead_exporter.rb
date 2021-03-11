@@ -32,6 +32,13 @@ class EADSerializer < ASpaceExport::Serializer
     if (cp = top['container_profile'])
       atts[:encodinganalog] = cp['_resolved']['url'] || cp['_resolved']['name']
     end
+    if(cl = top['container_locations'])
+      cl = (cl || []).first || {}
+      note = cl["note"]
+      if(cl["note"])
+        atts[:note] = cl["note"]
+      end
+    end
 
     xml.container(atts) {
       sanitize_mixed_content(text, xml, fragments)
