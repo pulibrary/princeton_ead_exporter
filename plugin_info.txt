@@ -1,2 +1,2 @@
 AppConfig[:plugins] = ['princeton_ead_exporter']
-plugin_version:0.6.0
+plugin_version:0.7.0

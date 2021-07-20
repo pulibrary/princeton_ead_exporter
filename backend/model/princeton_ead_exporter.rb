@@ -62,6 +62,31 @@ class EADSerializer < ASpaceExport::Serializer
     end
   end
 
+  def serialize_note_content(note, xml, fragments)
+    return if note["publish"] === false && !@include_unpublished
+    audatt = note["publish"] === false ? {:audience => 'internal'} : {}
+    content = note["content"]
+
+    atts = {:id => prefix_id(note['persistent_id']) }.reject{|k,v| v.nil? || v.empty? || v == "null" }.merge(audatt)
+    # Begin Princeton Modifications
+    # Add rights restriction to accessrestrict notes.
+    if note["rights_restriction"] && note["rights_restriction"]["local_access_restriction_type"]
+      rights_restriction = note["rights_restriction"]["local_access_restriction_type"].first
+      atts["rights-restriction"] = rights_restriction if rights_restriction
+    end
+    # End Princeton Modifications
+
+    head_text = note['label'] ? note['label'] : I18n.t("enumerations._note_types.#{note['type']}", :default => note['type'])
+    content, head_text = extract_head_text(content, head_text)
+    xml.send(note['type'], atts) {
+      xml.head { sanitize_mixed_content(head_text, xml, fragments) } unless ASpaceExport::Utils.headless_note?(note['type'], content )
+      sanitize_mixed_content(content, xml, fragments, ASpaceExport::Utils.include_p?(note['type']) ) if content
+      if note['subnotes']
+        serialize_subnotes(note['subnotes'], xml, fragments, ASpaceExport::Utils.include_p?(note['type']))
+      end
+    }
+  end
+
   def serialize_agent_notes(data, xml, fragments)
     unless data.creators_and_sources.nil?
       data.creators_and_sources.each do |link|
