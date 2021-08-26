@@ -74,13 +74,35 @@ class EADSerializer < ASpaceExport::Serializer
       rights_restriction = note["rights_restriction"]["local_access_restriction_type"].first
       atts["rights-restriction"] = rights_restriction if rights_restriction
     end
+
     # End Princeton Modifications
 
     head_text = note['label'] ? note['label'] : I18n.t("enumerations._note_types.#{note['type']}", :default => note['type'])
     content, head_text = extract_head_text(content, head_text)
+    ##head_content, head_text = extract_head_text(content, head_text)
+
+    # Update the fragments with the <note type="primary-name"> elements for the individual roles
+    #if note.key?('names') && !note['names'].empty?
+    if note.key?('names')
+      #fragments << NodeSet.new(xml.document, )
+      names = note['names']
+
+      names.each do |name|
+        name_fragment = Nokogiri::XML.fragment("<note type=''>#{name}</note>")
+        fragments << name_fragment
+      end
+    end
+    #
+    #
+    ##match = head_content.strip.match(/<head( [^<>]+)?>(.+?)<\/head>/)
+    ##updated_content =
+    ##content = [ updated_content, head_text ]
+
     xml.send(note['type'], atts) {
       xml.head { sanitize_mixed_content(head_text, xml, fragments) } unless ASpaceExport::Utils.headless_note?(note['type'], content )
+
       sanitize_mixed_content(content, xml, fragments, ASpaceExport::Utils.include_p?(note['type']) ) if content
+
       if note['subnotes']
         serialize_subnotes(note['subnotes'], xml, fragments, ASpaceExport::Utils.include_p?(note['type']))
       end
@@ -94,11 +116,16 @@ class EADSerializer < ASpaceExport::Serializer
         published = agent['publish'] === true
 
         next if !published && !@include_unpublished
-        notes = agent['notes'].select{ |x| x['jsonmodel_type'] == "note_bioghist" }
+        primary_names = agent['names'].select { |x| x.key?('primary_name') }
+
+        notes = agent['notes'].select { |x| x['jsonmodel_type'] == "note_bioghist" }
         notes.each do |note|
           note['type'] = 'bioghist'
           note['internal'] = false
           note['publish'] = true
+
+          note['names'] = primary_names.map { |x| x['primary_name'] }
+
           serialize_note_content(note, xml, fragments)
         end
       end
