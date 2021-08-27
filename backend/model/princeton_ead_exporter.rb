@@ -62,9 +62,8 @@ class EADSerializer < ASpaceExport::Serializer
     end
   end
 
-  def serialize_note_content(note, xml, fragments)
-    Log.debug('TRACE')
-
+  # Princeton Modifications: personal_names is used to construct the elements containing the personal names
+  def serialize_note_content(note, xml, fragments, personal_names = [])
     return if note["publish"] === false && !@include_unpublished
     audatt = note["publish"] === false ? {:audience => 'internal'} : {}
     content = note["content"]
@@ -76,31 +75,18 @@ class EADSerializer < ASpaceExport::Serializer
       rights_restriction = note["rights_restriction"]["local_access_restriction_type"].first
       atts["rights-restriction"] = rights_restriction if rights_restriction
     end
-
     # End Princeton Modifications
 
     head_text = note['label'] ? note['label'] : I18n.t("enumerations._note_types.#{note['type']}", :default => note['type'])
     content, head_text = extract_head_text(content, head_text)
-    ##head_content, head_text = extract_head_text(content, head_text)
-
-    # Update the fragments with the <note type="primary-name"> elements for the individual roles
-    #if note.key?('names') && !note['names'].empty?
-    if note.key?('names')
-      #fragments << NodeSet.new(xml.document, )
-      names = note['names']
-
-      names.each do |name|
-        name_fragment = Nokogiri::XML.fragment("<note type=''>#{name}</note>")
-        fragments << name_fragment
-      end
-    end
-    #
-    #
-    ##match = head_content.strip.match(/<head( [^<>]+)?>(.+?)<\/head>/)
-    ##updated_content =
-    ##content = [ updated_content, head_text ]
 
     xml.send(note['type'], atts) {
+      # Begin Princeton Modifications
+      personal_names.each do |personal_name|
+        xml.note(label: 'personal-name') { xml.text(personal_name) }
+      end
+      # End Princeton Modifications
+
       xml.head { sanitize_mixed_content(head_text, xml, fragments) } unless ASpaceExport::Utils.headless_note?(note['type'], content )
 
       sanitize_mixed_content(content, xml, fragments, ASpaceExport::Utils.include_p?(note['type']) ) if content
@@ -112,41 +98,24 @@ class EADSerializer < ASpaceExport::Serializer
   end
 
   def serialize_agent_notes(data, xml, fragments)
-    Log.debug('TRACE2')
-
     unless data.creators_and_sources.nil?
       data.creators_and_sources.each do |link|
 
-        Log.debug('TRACE3')
         agent = link['_resolved']
         published = agent['publish'] === true
 
-        Log.debug('TRACE5')
-        Log.debug('TRACE5a') if published
-        Log.debug('TRACE5b') if @include_unpublished
-        Log.debug("TRACE5c: #{agent['publish']}")
-
-        ## Remove this
-        ##next if !published && !@include_unpublished
-        primary_names = agent['names'].select { |x| x.key?('primary_name') }
-
-        Log.debug('TRACE4')
-        Log.debug("#{agent.keys}")
-        # ["lock_version", "publish", "created_by", "last_modified_by", "create_time", "system_mtime", "user_mtime", "is_slug_auto", "jsonmodel_type", "agent_contacts", "agent_record_controls", "agent_alternate_sets", "agent_conventions_declarations", "agent_other_agency_codes", "agent_maintenance_histories", "agent_record_identifiers", "agent_identifiers", "agent_sources", "agent_places", "agent_occupations", "agent_functions", "agent_topics", "agent_resources", "linked_agent_roles", "external_documents", "notes", "used_within_repositories", "used_within_published_repositories", "dates_of_existence", "used_languages", "metadata_rights_declarations", "names", "related_agents", "uri", "agent_type", "is_linked_to_published_record", "display_name", "title", "is_repo_agent"]
-        Log.debug("#{agent['notes']}")
+        next if !published && !@include_unpublished
+        primary_name_values = agent['names'].select { |x| x.key?('primary_name') }
+        personal_names = primary_name_values.map { |v| v['primary_name'] }
 
         notes = agent['notes'].select { |x| x['jsonmodel_type'] == "note_bioghist" }
-        notes.each do |note|
-          Log.debug('TRACE5')
 
+        notes.each do |note|
           note['type'] = 'bioghist'
           note['internal'] = false
           note['publish'] = true
 
-          note['names'] = primary_names.map { |x| x['primary_name'] }
-          Log.debug('TRACE4')
-
-          serialize_note_content(note, xml, fragments)
+          serialize_note_content(note, xml, fragments, personal_names)
         end
       end
     end
