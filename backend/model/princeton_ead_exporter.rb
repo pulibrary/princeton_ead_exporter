@@ -66,9 +66,9 @@ class EADSerializer < ASpaceExport::Serializer
   # @param note [Hash]
   # @param xml [Nokogiri::XML::Builder]
   # @param fragments [RawXMLHandler]
-  # @param primary_names [Array<String>]
-  # @note Princeton Modifications: primary_names is used to construct the XML elements containing the personal names
-  def serialize_note_content(note, xml, fragments, primary_names = [])
+  # @param sort_names [Array<String>]
+  # @note Princeton Modifications: sort_names is used to construct the XML elements containing the personal names
+  def serialize_note_content(note, xml, fragments, sort_names = [])
     return if note["publish"] === false && !@include_unpublished
     audatt = note["publish"] === false ? {:audience => 'internal'} : {}
     content = note["content"]
@@ -87,8 +87,8 @@ class EADSerializer < ASpaceExport::Serializer
 
     xml.send(note['type'], atts) {
       # Begin Princeton Modifications
-      primary_names.each do |personal_name|
-        xml.note(label: 'personal-name') { xml.text(personal_name) }
+      sort_names.each do |sort_name|
+        xml.note(label: 'personal-name') { xml.text(sort_name) }
       end
       # End Princeton Modifications
 
@@ -106,7 +106,7 @@ class EADSerializer < ASpaceExport::Serializer
   # @param data
   # @param xml [Nokogiri::XML::Builder]
   # @param fragments [RawXMLHandler]
-  # @note Princeton Modifications: primary_names is extracted from the agent['names'] and used to construct the XML elements containing the personal names
+  # @note Princeton Modifications: sort_names is extracted from the agent['names'] and used to construct the XML elements containing the personal names
   def serialize_agent_notes(data, xml, fragments)
     unless data.creators_and_sources.nil?
       data.creators_and_sources.each do |link|
@@ -115,8 +115,8 @@ class EADSerializer < ASpaceExport::Serializer
         published = agent['publish'] === true
 
         next if !published && !@include_unpublished
-        primary_name_values = agent['names'].select { |x| x.key?('primary_name') }
-        primary_names = primary_name_values.map { |v| v['primary_name'] }
+        sort_name_values = agent['names'].select { |x| x.key?('sort_name') }
+        sort_names = sort_name_values.map { |v| v['sort_name'] }
 
         notes = agent['notes'].select { |x| x['jsonmodel_type'] == "note_bioghist" }
 
@@ -125,7 +125,7 @@ class EADSerializer < ASpaceExport::Serializer
           note['internal'] = false
           note['publish'] = true
 
-          serialize_note_content(note, xml, fragments, primary_names)
+          serialize_note_content(note, xml, fragments, sort_names)
         end
       end
     end
