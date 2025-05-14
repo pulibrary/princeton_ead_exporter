@@ -68,6 +68,7 @@ class EADSerializer < ASpaceExport::Serializer
   # @param fragments [RawXMLHandler]
   # @param sort_names [Array<String>]
   # @note Princeton Modifications: sort_names is used to construct the XML elements containing the personal names
+  # this is a change over primary_name to make sure all name parts and dates are pulled in
   def serialize_note_content(note, xml, fragments, sort_names = [])
     return if note["publish"] === false && !@include_unpublished
     audatt = note["publish"] === false ? {:audience => 'internal'} : {}
