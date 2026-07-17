@@ -69,9 +69,9 @@ class EADSerializer < ASpaceExport::Serializer
   # @param sort_names [Array<String>]
   # @note Princeton Modifications: sort_names is used to construct the XML elements containing the personal names
   # this is a change over primary_name to make sure all name parts and dates are pulled in
-  def serialize_note_content(note, xml, fragments, sort_names = [])
+  def serialize_note_content(note, xml, fragments, sort_names = [], agent_internal: false)
     return if note["publish"] === false && !@include_unpublished
-    audatt = note["publish"] === false ? {:audience => 'internal'} : {}
+    audatt = (note["publish"] === false || agent_internal) ? {:audience => 'internal'} : {}
     content = note["content"]
 
     atts = {:id => prefix_id(note['persistent_id']) }.reject{|k,v| v.nil? || v.empty? || v == "null" }.merge(audatt)
@@ -149,6 +149,59 @@ class EADSerializer < ASpaceExport::Serializer
     end
     serialize_agent_notes(data, xml, fragments)
   end
+
+  def serialize_controlaccess(data, xml, fragments)
+    if (data.controlaccess_subjects.length + data.controlaccess_linked_agents(@include_unpublished).reject {|x| x.empty?}.length) > 0
+      xml.controlaccess {
+        data.controlaccess_subjects.zip(data.subjects).each do |node_data, subject|
+          xml.send(node_data[:node_name], node_data[:atts]) {
+            sanitize_mixed_content( node_data[:content], xml, fragments, ASpaceExport::Utils.include_p?(node_data[:node_name]) )
+            EADSerializer.run_serialize_step(subject['_resolved'], xml, fragments, node_data[:node_name].to_sym)
+          }
+        end
+
+        data.controlaccess_linked_agents(@include_unpublished).zip(data.linked_agents).each do |node_data, agent|
+          next if node_data.empty?
+          xml.send(node_data[:node_name], node_data[:atts]) {
+            sanitize_mixed_content( node_data[:content], xml, fragments, ASpaceExport::Utils.include_p?(node_data[:node_name]) )
+            EADSerializer.run_serialize_step(agent['_resolved'], xml, fragments, node_data[:node_name].to_sym)
+          }
+        end
+      } #</controlaccess>
+      # Princeton Modification 
+        serialize_controlaccess_agent_bioghists(data, xml, fragments)
+      # Princeton Modification
+    end
+  end
+
+# add an internal-only bioghist for each linked agent
+def serialize_controlaccess_agent_bioghists(data, xml, fragments)
+  agent_refs = []
+
+  data.controlaccess_linked_agents(@include_unpublished).zip(data.linked_agents).each do |node_data, link|
+    next if node_data.empty? 
+    next unless %w[persname corpname famname].include?(node_data[:node_name])
+    # dedupe agent refs
+    next if agent_refs.include?(link['ref'])                    
+    agent_refs << link['ref']
+
+    agent = link['_resolved']
+    sort_names = agent['names'].map { |name| name['sort_name'] }.compact
+
+    agent['notes'].each do |note|
+      next unless note['jsonmodel_type'] == 'note_bioghist'
+      next if note['publish'] === false && !@include_unpublished
+
+      note = note.merge('type' => 'bioghist',
+                        'internal' => false,
+                        'publish' => true,
+                        # don't include the id in case we reuse a note more than once
+                        'persistent_id' => nil)
+
+      serialize_note_content(note, xml, fragments, sort_names, agent_internal: true)
+    end
+  end
+end
 
   # Patch handle_linebreaks to deal with mixed content in <p> tags.
   # @todo Remove when fixed upstream.
