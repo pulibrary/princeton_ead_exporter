@@ -150,6 +150,7 @@ class EADSerializer < ASpaceExport::Serializer
     serialize_agent_notes(data, xml, fragments)
   end
 
+  #Modifies https://github.com/archivesspace/archivesspace/blob/master/backend/app/exporters/serializers/ead.rb#L426
   def serialize_controlaccess(data, xml, fragments)
     if (data.controlaccess_subjects.length + data.controlaccess_linked_agents(@include_unpublished).reject {|x| x.empty?}.length) > 0
       xml.controlaccess {
