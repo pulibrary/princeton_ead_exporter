@@ -150,30 +150,15 @@ class EADSerializer < ASpaceExport::Serializer
     serialize_agent_notes(data, xml, fragments)
   end
 
-  #Modifies https://github.com/archivesspace/archivesspace/blob/master/backend/app/exporters/serializers/ead.rb#L426
-  def serialize_controlaccess(data, xml, fragments)
-    if (data.controlaccess_subjects.length + data.controlaccess_linked_agents(@include_unpublished).reject {|x| x.empty?}.length) > 0
-      xml.controlaccess {
-        data.controlaccess_subjects.zip(data.subjects).each do |node_data, subject|
-          xml.send(node_data[:node_name], node_data[:atts]) {
-            sanitize_mixed_content( node_data[:content], xml, fragments, ASpaceExport::Utils.include_p?(node_data[:node_name]) )
-            EADSerializer.run_serialize_step(subject['_resolved'], xml, fragments, node_data[:node_name].to_sym)
-          }
-        end
+#Modifies https://github.com/archivesspace/archivesspace/blob/master/backend/app/exporters/serializers/ead.rb#L426
+alias_method :orig_serialize_controlaccess, :serialize_controlaccess
 
-        data.controlaccess_linked_agents(@include_unpublished).zip(data.linked_agents).each do |node_data, agent|
-          next if node_data.empty?
-          xml.send(node_data[:node_name], node_data[:atts]) {
-            sanitize_mixed_content( node_data[:content], xml, fragments, ASpaceExport::Utils.include_p?(node_data[:node_name]) )
-            EADSerializer.run_serialize_step(agent['_resolved'], xml, fragments, node_data[:node_name].to_sym)
-          }
-        end
-      } #</controlaccess>
-      # Princeton Modification 
-        serialize_controlaccess_agent_bioghists(data, xml, fragments)
-      # Princeton Modification
-    end
-  end
+def serialize_controlaccess(data, xml, fragments)
+  orig_serialize_controlaccess(data, xml, fragments)
+  #Princeton modification
+  serialize_controlaccess_agent_bioghists(data, xml, fragments)
+  #End of Princeton modification
+end
 
 # add an internal-only bioghist for each linked agent
 def serialize_controlaccess_agent_bioghists(data, xml, fragments)
