@@ -103,6 +103,15 @@ class EADSerializer < ASpaceExport::Serializer
     }
   end
 
+  # Princeton Modification: Drops the bioghist's persistent_id to avoid an XML schema violation 
+  # if an Agent bioghist is pulled into the same EAD more than once
+  def agent_bioghist_note(note)
+    note.merge('type' => 'bioghist',
+               'internal' => false,
+               'publish' => true,
+               'persistent_id' => nil)
+  end
+
   # Serializes the the JSONModel notes for linked Agents into XML snippets for the EAD Document
   # @param data
   # @param xml [Nokogiri::XML::Builder]
@@ -122,11 +131,7 @@ class EADSerializer < ASpaceExport::Serializer
         notes = agent['notes'].select { |x| x['jsonmodel_type'] == "note_bioghist" }
 
         notes.each do |note|
-          note['type'] = 'bioghist'
-          note['internal'] = false
-          note['publish'] = true
-
-          serialize_note_content(note, xml, fragments, sort_names)
+          serialize_note_content(agent_bioghist_note(note), xml, fragments, sort_names)
         end
       end
     end
@@ -178,13 +183,7 @@ def serialize_controlaccess_agent_bioghists(data, xml, fragments)
       next unless note['jsonmodel_type'] == 'note_bioghist'
       next if note['publish'] === false && !@include_unpublished
 
-      note = note.merge('type' => 'bioghist',
-                        'internal' => false,
-                        'publish' => true,
-                        # don't include the id in case we reuse a note more than once
-                        'persistent_id' => nil)
-
-      serialize_note_content(note, xml, fragments, sort_names, agent_internal: true)
+      serialize_note_content(agent_bioghist_note(note), xml, fragments, sort_names, agent_internal: true)
     end
   end
 end
